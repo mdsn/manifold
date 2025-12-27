@@ -1,0 +1,7 @@
+[package]
+name = "man"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+render = { path = "../render" }

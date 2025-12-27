@@ -1,0 +1,17 @@
+[workspace]
+members = [
+  "crates/manifold",
+  "crates/app",
+  "crates/ui",
+  "crates/input",
+  "crates/man",
+  "crates/render",
+  "crates/platform",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+

@@ -1,0 +1,8 @@
+[package]
+name = "ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app = { path = "../app" }
+ratatui = "0.27"

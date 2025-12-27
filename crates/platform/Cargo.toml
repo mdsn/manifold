@@ -1,0 +1,8 @@
+[package]
+name = "platform"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+crossterm = "0.27"
+ratatui = "0.27"

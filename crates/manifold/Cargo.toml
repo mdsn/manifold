@@ -1,0 +1,10 @@
+[package]
+name = "manifold"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app = { path = "../app" }
+platform = { path = "../platform" }
+render = { path = "../render" }
+ui = { path = "../ui" }
