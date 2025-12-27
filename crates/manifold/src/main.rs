@@ -6,7 +6,7 @@ use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = TerminalContext::new()?;
-    let mut events = EventStream::new(Duration::from_millis(200));
+    let events = EventStream::new(Duration::from_millis(200));
     let renderer = SystemManRenderer::new();
 
     let mut app = App::new("open", Some("2".to_string()));

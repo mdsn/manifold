@@ -42,8 +42,12 @@ impl From<std::string::FromUtf8Error> for RenderError {
 }
 
 pub trait ManRenderer {
-    fn render(&self, name: &str, section: Option<&str>, width: u16)
-        -> Result<Vec<String>, RenderError>;
+    fn render(
+        &self,
+        name: &str,
+        section: Option<&str>,
+        width: u16,
+    ) -> Result<Vec<String>, RenderError>;
 }
 
 #[derive(Debug, Default)]
@@ -64,9 +68,7 @@ impl ManRenderer for SystemManRenderer {
     ) -> Result<Vec<String>, RenderError> {
         let safe_width = width.max(1).to_string();
         let mut man_cmd = Command::new("man");
-        man_cmd
-            .env("MANWIDTH", &safe_width)
-            .env("MANPAGER", "cat");
+        man_cmd.env("MANWIDTH", &safe_width).env("MANPAGER", "cat");
 
         if let Some(section) = section {
             man_cmd.arg(section);

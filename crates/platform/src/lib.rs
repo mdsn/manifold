@@ -1,9 +1,11 @@
-pub use crossterm::event::{Event, KeyCode};
 use crossterm::event::{self};
+pub use crossterm::event::{Event, KeyCode};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use ratatui::backend::CrosstermBackend;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use std::io::{self, Stdout};
 use std::time::Duration;
 

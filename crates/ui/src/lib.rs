@@ -1,14 +1,18 @@
 use app::App;
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let size = frame.size();
     let chunks = layout(size);
 
-    let text: Vec<Line> = app.lines().iter().map(|line| Line::from(line.as_str())).collect();
+    let text: Vec<Line> = app
+        .lines()
+        .iter()
+        .map(|line| Line::from(line.as_str()))
+        .collect();
     let paragraph = Paragraph::new(text).scroll((app.scroll() as u16, 0));
     frame.render_widget(paragraph, chunks[0]);
 
