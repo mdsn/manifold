@@ -1,5 +1,6 @@
-use app::App;
-use platform::{Event, EventStream, KeyCode, PlatformEvent, TerminalContext};
+use app::{Action, App};
+use input::map_event;
+use platform::{EventStream, PlatformEvent, TerminalContext};
 use render::SystemManRenderer;
 use std::error::Error;
 use std::time::Duration;
@@ -22,24 +23,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             .draw(|frame| ui::draw(frame, &app))?;
 
         match events.next()? {
-            PlatformEvent::Input(event) => match event {
-                Event::Key(key) => match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => break,
-                    KeyCode::Up => app.scroll_up(1),
-                    KeyCode::Down => app.scroll_down(1, content_height),
-                    KeyCode::PageUp => app.page_up(content_height),
-                    KeyCode::PageDown => app.page_down(content_height),
-                    KeyCode::Char('k') => app.scroll_up(1),
-                    KeyCode::Char('j') => app.scroll_down(1, content_height),
-                    _ => {}
-                },
-                Event::Resize(width, height) => {
-                    content_width = width.max(1);
-                    content_height = ui::content_height(height);
-                    app.resize(&renderer, content_width, content_height)?;
+            PlatformEvent::Input(event) => {
+                if let Some(action) = map_event(event) {
+                    match action {
+                        Action::Quit => break,
+                        Action::ScrollUp(amount) => app.scroll_up(amount),
+                        Action::ScrollDown(amount) => app.scroll_down(amount, content_height),
+                        Action::PageUp => app.page_up(content_height),
+                        Action::PageDown => app.page_down(content_height),
+                        Action::Resize(width, height) => {
+                            content_width = width.max(1);
+                            content_height = ui::content_height(height);
+                            app.resize(&renderer, content_width, content_height)?;
+                        }
+                        Action::GoTop => app.go_top(),
+                        Action::GoBottom => app.go_bottom(content_height),
+                    }
                 }
-                _ => {}
-            },
+            }
             PlatformEvent::Tick => {}
         }
     }

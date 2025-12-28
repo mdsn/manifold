@@ -1,6 +1,18 @@
 use man::ManPage;
 use render::{ManRenderer, RenderError};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    Quit,
+    ScrollUp(usize),
+    ScrollDown(usize),
+    PageUp,
+    PageDown,
+    Resize(u16, u16),
+    GoTop,
+    GoBottom,
+}
+
 #[derive(Debug)]
 pub struct App {
     page: ManPage,
@@ -62,6 +74,14 @@ impl App {
 
     pub fn page_down(&mut self, viewport_height: usize) {
         self.scroll_down(viewport_height, viewport_height);
+    }
+
+    pub fn go_top(&mut self) {
+        self.page.scroll = 0;
+    }
+
+    pub fn go_bottom(&mut self, viewport_height: usize) {
+        self.page.scroll = self.max_scroll(viewport_height);
     }
 
     pub fn clamp_scroll(&mut self, viewport_height: usize) {

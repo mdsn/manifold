@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app" }
+input = { path = "../input" }
 platform = { path = "../platform" }
 render = { path = "../render" }
 ui = { path = "../ui" }

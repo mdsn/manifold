@@ -4,3 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+app = { path = "../app" }
+platform = { path = "../platform" }
