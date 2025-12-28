@@ -1,7 +1,8 @@
 use app::{App, Mode};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::text::Line;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -24,6 +25,16 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Mode::Command { line } => format!(":{line}"),
     };
     frame.render_widget(Paragraph::new(status), chunks[2]);
+
+    if let Mode::Command { line } = app.mode() {
+        let area = chunks[2];
+        let mut cursor_x = area.x + 1 + line.len() as u16;
+        let max_x = area.x + area.width.saturating_sub(1);
+        if cursor_x > max_x {
+            cursor_x = max_x;
+        }
+        frame.set_cursor(cursor_x, area.y);
+    }
 }
 
 pub fn content_height(height: u16) -> usize {
@@ -42,18 +53,21 @@ fn layout(area: Rect) -> [Rect; 3] {
     [chunks[0], chunks[1], chunks[2]]
 }
 
-fn format_tabs(app: &App) -> String {
-    let mut titles = Vec::with_capacity(app.tabs().len());
+fn format_tabs(app: &App) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::with_capacity(app.tabs().len());
+    let active_style = Style::default().add_modifier(Modifier::REVERSED);
     for (index, page) in app.tabs().iter().enumerate() {
         let label = match page.section() {
             Some(section) => format!("{}({})", page.name(), section),
             None => page.name().to_string(),
         };
-        if index == app.active_index() {
-            titles.push(format!("[{}] {}", index + 1, label));
+        let text = format!(" {} ", label);
+        let span = if index == app.active_index() {
+            Span::styled(text, active_style)
         } else {
-            titles.push(format!(" {}  {}", index + 1, label));
-        }
+            Span::raw(text)
+        };
+        spans.push(span);
     }
-    titles.join("  ")
+    Line::from(spans)
 }

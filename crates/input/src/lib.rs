@@ -6,11 +6,12 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
         Event::Resize(width, height) => Some(Action::Resize(width, height)),
         Event::Key(code) => match mode {
             Mode::Normal => match code {
-                KeyCode::Char('q') => Some(Action::Quit),
                 KeyCode::Char('k') => Some(Action::ScrollUp(1)),
                 KeyCode::Char('j') => Some(Action::ScrollDown(1)),
                 KeyCode::Char('g') => Some(Action::GoTop),
                 KeyCode::Char('G') => Some(Action::GoBottom),
+                KeyCode::Char('u') => Some(Action::HalfPageUp),
+                KeyCode::Char('d') => Some(Action::HalfPageDown),
                 KeyCode::Char('H') => Some(Action::TabLeft),
                 KeyCode::Char('L') => Some(Action::TabRight),
                 KeyCode::Char(':') => Some(Action::EnterCommandMode),
@@ -18,7 +19,6 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Down => Some(Action::ScrollDown(1)),
                 KeyCode::PageUp => Some(Action::PageUp),
                 KeyCode::PageDown => Some(Action::PageDown),
-                KeyCode::Esc => Some(Action::Quit),
                 _ => None,
             },
             Mode::Command { .. } => match code {
@@ -38,18 +38,6 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn maps_quit_keys() {
-        assert_eq!(
-            map_event(Event::Key(KeyCode::Char('q')), &Mode::Normal),
-            Some(Action::Quit)
-        );
-        assert_eq!(
-            map_event(Event::Key(KeyCode::Esc), &Mode::Normal),
-            Some(Action::Quit)
-        );
-    }
 
     #[test]
     fn maps_scroll_keys() {
@@ -92,6 +80,18 @@ mod tests {
         assert_eq!(
             map_event(Event::Key(KeyCode::Char('G')), &Mode::Normal),
             Some(Action::GoBottom)
+        );
+    }
+
+    #[test]
+    fn maps_half_page_keys() {
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('u')), &Mode::Normal),
+            Some(Action::HalfPageUp)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('d')), &Mode::Normal),
+            Some(Action::HalfPageDown)
         );
     }
 

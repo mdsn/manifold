@@ -8,6 +8,8 @@ pub enum Action {
     ScrollDown(usize),
     PageUp,
     PageDown,
+    HalfPageUp,
+    HalfPageDown,
     Resize(u16, u16),
     GoTop,
     GoBottom,
@@ -28,7 +30,10 @@ pub enum Mode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ParsedCommand {
-    Man { topic: String },
+    Man {
+        topic: String,
+        section: Option<String>,
+    },
     Quit,
     Wipe,
     Empty,
@@ -97,6 +102,8 @@ impl App {
             Action::ScrollDown(amount) => self.scroll_down(amount, viewport_height),
             Action::PageUp => self.page_up(viewport_height),
             Action::PageDown => self.page_down(viewport_height),
+            Action::HalfPageUp => self.half_page_up(viewport_height),
+            Action::HalfPageDown => self.half_page_down(viewport_height),
             Action::Resize(_, _) => self.resize_active(renderer, width, viewport_height)?,
             Action::GoTop => self.go_top(),
             Action::GoBottom => self.go_bottom(viewport_height),
@@ -146,6 +153,16 @@ impl App {
 
     pub fn page_down(&mut self, viewport_height: usize) {
         self.scroll_down(viewport_height, viewport_height);
+    }
+
+    pub fn half_page_up(&mut self, viewport_height: usize) {
+        let amount = (viewport_height / 2).max(1);
+        self.scroll_up(amount);
+    }
+
+    pub fn half_page_down(&mut self, viewport_height: usize) {
+        let amount = (viewport_height / 2).max(1);
+        self.scroll_down(amount, viewport_height);
     }
 
     pub fn go_top(&mut self) {
@@ -241,8 +258,8 @@ impl App {
         viewport_height: usize,
     ) -> Result<UpdateOutcome, RenderError> {
         match command {
-            ParsedCommand::Man { topic } => {
-                self.tabs.push(ManPage::new(topic, None));
+            ParsedCommand::Man { topic, section } => {
+                self.tabs.push(ManPage::new(topic, section));
                 self.active = self.tabs.len() - 1;
                 self.active_page_mut().ensure_render(renderer, width)?;
                 self.clamp_scroll(viewport_height);
@@ -266,14 +283,22 @@ fn parse_command(line: &str) -> ParsedCommand {
         None => return ParsedCommand::Empty,
     };
     match command {
-        "man" => match parts.next() {
-            Some(topic) => ParsedCommand::Man {
-                topic: topic.to_string(),
-            },
-            None => ParsedCommand::Unknown,
-        },
-        "quit" => ParsedCommand::Quit,
-        "wipe" => ParsedCommand::Wipe,
+        "man" => {
+            let args: Vec<&str> = parts.collect();
+            match args.as_slice() {
+                [topic] => ParsedCommand::Man {
+                    topic: (*topic).to_string(),
+                    section: None,
+                },
+                [section, topic] => ParsedCommand::Man {
+                    topic: (*topic).to_string(),
+                    section: Some((*section).to_string()),
+                },
+                _ => ParsedCommand::Unknown,
+            }
+        }
+        "quit" | "q" => ParsedCommand::Quit,
+        "wipe" | "w" => ParsedCommand::Wipe,
         _ => ParsedCommand::Unknown,
     }
 }
@@ -314,11 +339,21 @@ mod tests {
         assert_eq!(
             parse_command("man ls"),
             ParsedCommand::Man {
-                topic: "ls".to_string()
+                topic: "ls".to_string(),
+                section: None,
+            }
+        );
+        assert_eq!(
+            parse_command("man 2 read"),
+            ParsedCommand::Man {
+                topic: "read".to_string(),
+                section: Some("2".to_string()),
             }
         );
         assert_eq!(parse_command("quit"), ParsedCommand::Quit);
+        assert_eq!(parse_command("q"), ParsedCommand::Quit);
         assert_eq!(parse_command("wipe"), ParsedCommand::Wipe);
+        assert_eq!(parse_command("w"), ParsedCommand::Wipe);
         assert_eq!(parse_command(""), ParsedCommand::Empty);
         assert_eq!(parse_command("bogus"), ParsedCommand::Unknown);
     }
