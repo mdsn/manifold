@@ -20,12 +20,26 @@ pub enum Action {
     CommandBackspace,
     CommandSubmit,
     CommandCancel,
+    EnterSearchMode,
+    SearchChar(char),
+    SearchBackspace,
+    SearchSubmit,
+    SearchCancel,
+    SearchNext,
+    SearchPrev,
+    SearchClear,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
     Normal,
-    Command { line: String },
+    Command {
+        line: String,
+    },
+    Search {
+        line: String,
+        previous: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +99,10 @@ impl App {
         &self.tabs
     }
 
+    pub fn search_query(&self) -> Option<&str> {
+        self.active_page().search_query()
+    }
+
     pub fn active_index(&self) -> usize {
         self.active
     }
@@ -113,10 +131,19 @@ impl App {
             Action::CommandChar(value) => self.command_char(value),
             Action::CommandBackspace => self.command_backspace(),
             Action::CommandCancel => self.mode = Mode::Normal,
+            Action::EnterSearchMode => self.enter_search_mode(),
+            Action::SearchChar(value) => self.search_char(value, viewport_height),
+            Action::SearchBackspace => self.search_backspace(viewport_height),
+            Action::SearchSubmit => self.search_submit(viewport_height),
+            Action::SearchCancel => self.search_cancel(viewport_height),
+            Action::SearchNext => self.search_next(viewport_height),
+            Action::SearchPrev => self.search_prev(viewport_height),
+            Action::SearchClear => self.search_clear(),
             Action::CommandSubmit => {
                 let line = match std::mem::replace(&mut self.mode, Mode::Normal) {
                     Mode::Command { line } => line,
                     Mode::Normal => String::new(),
+                    Mode::Search { line, .. } => line,
                 };
                 let command = parse_command(&line);
                 return self.execute_command(command, renderer, width, viewport_height);
@@ -216,6 +243,77 @@ impl App {
         }
     }
 
+    fn enter_search_mode(&mut self) {
+        let previous = self
+            .active_page()
+            .search_query()
+            .map(|value| value.to_string());
+        self.mode = Mode::Search {
+            line: String::new(),
+            previous,
+        };
+    }
+
+    fn search_char(&mut self, value: char, viewport_height: usize) {
+        let query = match &mut self.mode {
+            Mode::Search { line, .. } => {
+                line.push(value);
+                line.clone()
+            }
+            _ => return,
+        };
+        self.apply_search(&query, viewport_height);
+    }
+
+    fn search_backspace(&mut self, viewport_height: usize) {
+        let query = match &mut self.mode {
+            Mode::Search { line, .. } => {
+                line.pop();
+                line.clone()
+            }
+            _ => return,
+        };
+        self.apply_search(&query, viewport_height);
+    }
+
+    fn search_submit(&mut self, viewport_height: usize) {
+        let query = match &self.mode {
+            Mode::Search { line, .. } => line.clone(),
+            _ => return,
+        };
+        self.apply_search(&query, viewport_height);
+        self.mode = Mode::Normal;
+    }
+
+    fn search_cancel(&mut self, viewport_height: usize) {
+        let previous = match &self.mode {
+            Mode::Search { previous, .. } => previous.clone(),
+            _ => return,
+        };
+        if let Some(prev) = previous {
+            self.apply_search(&prev, viewport_height);
+        } else {
+            self.active_page_mut().clear_search();
+        }
+        self.mode = Mode::Normal;
+    }
+
+    fn search_next(&mut self, viewport_height: usize) {
+        if let Some(line) = self.active_page_mut().next_match_line() {
+            self.center_on_line(line, viewport_height);
+        }
+    }
+
+    fn search_prev(&mut self, viewport_height: usize) {
+        if let Some(line) = self.active_page_mut().previous_match_line() {
+            self.center_on_line(line, viewport_height);
+        }
+    }
+
+    fn search_clear(&mut self) {
+        self.active_page_mut().clear_search();
+    }
+
     fn switch_tab_left(
         &mut self,
         renderer: &dyn ManRenderer,
@@ -269,6 +367,23 @@ impl App {
             ParsedCommand::Wipe => Ok(UpdateOutcome::Continue),
             ParsedCommand::Empty | ParsedCommand::Unknown => Ok(UpdateOutcome::Continue),
         }
+    }
+
+    fn apply_search(&mut self, line: &str, viewport_height: usize) {
+        let query = line.to_string();
+        let start_line = self.active_page().scroll;
+        self.active_page_mut()
+            .update_search(Some(query), start_line);
+        if let Some(match_line) = self.active_page().current_match_line() {
+            self.center_on_line(match_line, viewport_height);
+        }
+    }
+
+    fn center_on_line(&mut self, line: usize, viewport_height: usize) {
+        let half = viewport_height / 2;
+        let max_scroll = self.max_scroll(viewport_height);
+        let desired = line.saturating_sub(half).min(max_scroll);
+        self.active_page_mut().scroll = desired;
     }
 }
 
@@ -334,6 +449,27 @@ mod tests {
         }
     }
 
+    struct LinesRenderer {
+        lines: Vec<String>,
+    }
+
+    impl LinesRenderer {
+        fn new(lines: Vec<String>) -> Self {
+            Self { lines }
+        }
+    }
+
+    impl ManRenderer for LinesRenderer {
+        fn render(
+            &self,
+            _name: &str,
+            _section: Option<&str>,
+            _width: u16,
+        ) -> Result<Vec<String>, RenderError> {
+            Ok(self.lines.clone())
+        }
+    }
+
     #[test]
     fn parses_commands() {
         assert_eq!(
@@ -393,5 +529,49 @@ mod tests {
         app.update(Action::TabRight, &renderer, width, height)
             .unwrap();
         assert_eq!(app.active, 1);
+    }
+
+    #[test]
+    fn search_centers_and_navigates() {
+        let mut lines = Vec::new();
+        for idx in 0..40 {
+            if idx == 10 || idx == 30 {
+                lines.push(format!("foo line {idx}"));
+            } else {
+                lines.push(format!("line {idx}"));
+            }
+        }
+        let renderer = LinesRenderer::new(lines);
+        let mut app = App::new("open", None);
+        let width: u16 = 80;
+        let height: usize = 10;
+        app.update(
+            Action::Resize(width, height as u16),
+            &renderer,
+            width,
+            height,
+        )
+        .unwrap();
+
+        app.update(Action::EnterSearchMode, &renderer, width, height)
+            .unwrap();
+        for ch in "foo".chars() {
+            app.update(Action::SearchChar(ch), &renderer, width, height)
+                .unwrap();
+        }
+        app.update(Action::SearchSubmit, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.scroll(), 5);
+
+        app.update(Action::SearchNext, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.scroll(), 25);
+
+        app.update(Action::SearchClear, &renderer, width, height)
+            .unwrap();
+        let scroll = app.scroll();
+        app.update(Action::SearchNext, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.scroll(), scroll);
     }
 }

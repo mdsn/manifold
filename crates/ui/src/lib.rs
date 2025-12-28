@@ -12,28 +12,21 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let tab_line = format_tabs(app);
     frame.render_widget(Paragraph::new(tab_line), chunks[0]);
 
-    let text: Vec<Line> = app
-        .lines()
-        .iter()
-        .map(|line| Line::from(line.as_str()))
-        .collect();
+    let text: Vec<Line> = build_lines(app);
     let paragraph = Paragraph::new(text).scroll((app.scroll() as u16, 0));
     frame.render_widget(paragraph, chunks[1]);
 
     let status = match app.mode() {
         Mode::Normal => format!("{}  line {}", app.title(), app.scroll() + 1),
         Mode::Command { line } => format!(":{line}"),
+        Mode::Search { line, .. } => format!("/{line}"),
     };
     frame.render_widget(Paragraph::new(status), chunks[2]);
 
-    if let Mode::Command { line } = app.mode() {
-        let area = chunks[2];
-        let mut cursor_x = area.x + 1 + line.len() as u16;
-        let max_x = area.x + area.width.saturating_sub(1);
-        if cursor_x > max_x {
-            cursor_x = max_x;
-        }
-        frame.set_cursor(cursor_x, area.y);
+    match app.mode() {
+        Mode::Command { line } => set_prompt_cursor(frame, chunks[2], line),
+        Mode::Search { line, .. } => set_prompt_cursor(frame, chunks[2], line),
+        Mode::Normal => {}
     }
 }
 
@@ -70,4 +63,56 @@ fn format_tabs(app: &App) -> Line<'static> {
         spans.push(span);
     }
     Line::from(spans)
+}
+
+fn build_lines(app: &App) -> Vec<Line<'static>> {
+    let Some(query) = app.search_query() else {
+        return app
+            .lines()
+            .iter()
+            .map(|line| Line::from(line.to_string()))
+            .collect();
+    };
+    if query.is_empty() {
+        return app
+            .lines()
+            .iter()
+            .map(|line| Line::from(line.to_string()))
+            .collect();
+    }
+    let highlight = Style::default().add_modifier(Modifier::REVERSED);
+    app.lines()
+        .iter()
+        .map(|line| highlight_line(line, query, highlight))
+        .collect()
+}
+
+fn highlight_line(line: &str, query: &str, style: Style) -> Line<'static> {
+    let mut spans = Vec::new();
+    let mut offset = 0;
+    while let Some(pos) = line[offset..].find(query) {
+        let start = offset + pos;
+        let end = start + query.len();
+        if start > offset {
+            spans.push(Span::raw(line[offset..start].to_string()));
+        }
+        spans.push(Span::styled(line[start..end].to_string(), style));
+        offset = end;
+    }
+    if spans.is_empty() {
+        return Line::from(line.to_string());
+    }
+    if offset < line.len() {
+        spans.push(Span::raw(line[offset..].to_string()));
+    }
+    Line::from(spans)
+}
+
+fn set_prompt_cursor(frame: &mut Frame, area: Rect, line: &str) {
+    let mut cursor_x = area.x + 1 + line.len() as u16;
+    let max_x = area.x + area.width.saturating_sub(1);
+    if cursor_x > max_x {
+        cursor_x = max_x;
+    }
+    frame.set_cursor(cursor_x, area.y);
 }

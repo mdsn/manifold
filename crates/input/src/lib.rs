@@ -15,10 +15,14 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Char('H') => Some(Action::TabLeft),
                 KeyCode::Char('L') => Some(Action::TabRight),
                 KeyCode::Char(':') => Some(Action::EnterCommandMode),
+                KeyCode::Char('/') => Some(Action::EnterSearchMode),
+                KeyCode::Char('n') => Some(Action::SearchNext),
+                KeyCode::Char('p') => Some(Action::SearchPrev),
                 KeyCode::Up => Some(Action::ScrollUp(1)),
                 KeyCode::Down => Some(Action::ScrollDown(1)),
                 KeyCode::PageUp => Some(Action::PageUp),
                 KeyCode::PageDown => Some(Action::PageDown),
+                KeyCode::Esc => Some(Action::SearchClear),
                 _ => None,
             },
             Mode::Command { .. } => match code {
@@ -27,6 +31,15 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Backspace => Some(Action::CommandBackspace),
                 KeyCode::Char(value) if value == ' ' || value.is_ascii_graphic() => {
                     Some(Action::CommandChar(value))
+                }
+                _ => None,
+            },
+            Mode::Search { .. } => match code {
+                KeyCode::Esc | KeyCode::Ctrl('c') => Some(Action::SearchCancel),
+                KeyCode::Enter => Some(Action::SearchSubmit),
+                KeyCode::Backspace => Some(Action::SearchBackspace),
+                KeyCode::Char(value) if value == ' ' || value.is_ascii_graphic() => {
+                    Some(Action::SearchChar(value))
                 }
                 _ => None,
             },
@@ -125,6 +138,26 @@ mod tests {
     }
 
     #[test]
+    fn maps_search_keys() {
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('/')), &Mode::Normal),
+            Some(Action::EnterSearchMode)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('n')), &Mode::Normal),
+            Some(Action::SearchNext)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('p')), &Mode::Normal),
+            Some(Action::SearchPrev)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Esc), &Mode::Normal),
+            Some(Action::SearchClear)
+        );
+    }
+
+    #[test]
     fn maps_command_mode_keys() {
         let mode = Mode::Command {
             line: String::new(),
@@ -148,6 +181,30 @@ mod tests {
         assert_eq!(
             map_event(Event::Key(KeyCode::Ctrl('c')), &mode),
             Some(Action::CommandCancel)
+        );
+    }
+
+    #[test]
+    fn maps_search_mode_keys() {
+        let mode = Mode::Search {
+            line: String::new(),
+            previous: None,
+        };
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('a')), &mode),
+            Some(Action::SearchChar('a'))
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Backspace), &mode),
+            Some(Action::SearchBackspace)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Enter), &mode),
+            Some(Action::SearchSubmit)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Esc), &mode),
+            Some(Action::SearchCancel)
         );
     }
 }
