@@ -1,4 +1,4 @@
-use app::{Action, App};
+use app::{Action, App, UpdateOutcome};
 use input::map_event;
 use platform::{EventStream, PlatformEvent, TerminalContext};
 use render::SystemManRenderer;
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let size = terminal.terminal_mut().size()?;
     let mut content_width = size.width.max(1);
     let mut content_height = ui::content_height(size.height);
-    app.resize(&renderer, content_width, content_height)?;
+    app.resize_active(&renderer, content_width, content_height)?;
 
     loop {
         terminal
@@ -24,20 +24,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         match events.next()? {
             PlatformEvent::Input(event) => {
-                if let Some(action) = map_event(event) {
-                    match action {
-                        Action::Quit => break,
-                        Action::ScrollUp(amount) => app.scroll_up(amount),
-                        Action::ScrollDown(amount) => app.scroll_down(amount, content_height),
-                        Action::PageUp => app.page_up(content_height),
-                        Action::PageDown => app.page_down(content_height),
-                        Action::Resize(width, height) => {
-                            content_width = width.max(1);
-                            content_height = ui::content_height(height);
-                            app.resize(&renderer, content_width, content_height)?;
-                        }
-                        Action::GoTop => app.go_top(),
-                        Action::GoBottom => app.go_bottom(content_height),
+                if let Some(action) = map_event(event, app.mode()) {
+                    if let Action::Resize(width, height) = action {
+                        content_width = width.max(1);
+                        content_height = ui::content_height(height);
+                    }
+                    let outcome = app.update(action, &renderer, content_width, content_height)?;
+                    if outcome == UpdateOutcome::Quit {
+                        break;
                     }
                 }
             }

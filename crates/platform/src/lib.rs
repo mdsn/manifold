@@ -11,10 +11,13 @@ use std::time::Duration;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyCode {
     Char(char),
+    Ctrl(char),
     Up,
     Down,
     PageUp,
     PageDown,
+    Enter,
+    Backspace,
     Esc,
 }
 
@@ -80,11 +83,19 @@ fn map_crossterm_event(event: CrosstermEvent) -> Event {
     match event {
         CrosstermEvent::Resize(width, height) => Event::Resize(width, height),
         CrosstermEvent::Key(key) => match key.code {
-            CrosstermKeyCode::Char(value) => Event::Key(KeyCode::Char(value)),
+            CrosstermKeyCode::Char(value) => {
+                if key.modifiers.contains(event::KeyModifiers::CONTROL) {
+                    Event::Key(KeyCode::Ctrl(value))
+                } else {
+                    Event::Key(KeyCode::Char(value))
+                }
+            }
             CrosstermKeyCode::Up => Event::Key(KeyCode::Up),
             CrosstermKeyCode::Down => Event::Key(KeyCode::Down),
             CrosstermKeyCode::PageUp => Event::Key(KeyCode::PageUp),
             CrosstermKeyCode::PageDown => Event::Key(KeyCode::PageDown),
+            CrosstermKeyCode::Enter => Event::Key(KeyCode::Enter),
+            CrosstermKeyCode::Backspace => Event::Key(KeyCode::Backspace),
             CrosstermKeyCode::Esc => Event::Key(KeyCode::Esc),
             _ => Event::Unsupported,
         },
