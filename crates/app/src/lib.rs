@@ -412,7 +412,24 @@ impl App {
                 Ok(UpdateOutcome::Continue)
             }
             ParsedCommand::Quit => Ok(UpdateOutcome::Quit),
-            ParsedCommand::Wipe => Ok(UpdateOutcome::Continue),
+            ParsedCommand::Wipe => {
+                if self.tabs.is_empty() {
+                    return Ok(UpdateOutcome::Continue);
+                }
+                self.tabs.remove(self.active);
+                if self.tabs.is_empty() {
+                    self.active = 0;
+                    return Ok(UpdateOutcome::Continue);
+                }
+                if self.active >= self.tabs.len() {
+                    self.active = self.tabs.len() - 1;
+                }
+                if let Some(page) = self.active_page_mut() {
+                    page.ensure_render(renderer, width)?;
+                }
+                self.clamp_scroll(viewport_height);
+                Ok(UpdateOutcome::Continue)
+            }
             ParsedCommand::Empty | ParsedCommand::Unknown => Ok(UpdateOutcome::Continue),
         }
     }
@@ -625,5 +642,53 @@ mod tests {
         app.update(Action::SearchNext, &renderer, width, height)
             .unwrap();
         assert_eq!(app.scroll(), scroll);
+    }
+
+    #[test]
+    fn wipe_closes_active_tab_and_handles_empty() {
+        let renderer = StubRenderer::new();
+        let width: u16 = 80;
+        let height: usize = 10;
+        let mut app = App::empty();
+        app.update(
+            Action::Resize(width, height as u16),
+            &renderer,
+            width,
+            height,
+        )
+        .unwrap();
+        app.update(Action::EnterCommandMode, &renderer, width, height)
+            .unwrap();
+        for ch in "wipe".chars() {
+            app.update(Action::CommandChar(ch), &renderer, width, height)
+                .unwrap();
+        }
+        app.update(Action::CommandSubmit, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.tabs.len(), 0);
+
+        let mut app = App::new("open", None);
+        app.update(Action::EnterCommandMode, &renderer, width, height)
+            .unwrap();
+        for ch in "man ls".chars() {
+            app.update(Action::CommandChar(ch), &renderer, width, height)
+                .unwrap();
+        }
+        app.update(Action::CommandSubmit, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.tabs.len(), 2);
+        assert_eq!(app.active, 1);
+
+        app.update(Action::EnterCommandMode, &renderer, width, height)
+            .unwrap();
+        for ch in "w".chars() {
+            app.update(Action::CommandChar(ch), &renderer, width, height)
+                .unwrap();
+        }
+        app.update(Action::CommandSubmit, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.tabs.len(), 1);
+        assert_eq!(app.active, 0);
+        assert_eq!(app.title(), "open");
     }
 }
