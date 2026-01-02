@@ -68,6 +68,14 @@ pub struct App {
 }
 
 impl App {
+    pub fn empty() -> Self {
+        Self {
+            tabs: Vec::new(),
+            active: 0,
+            mode: Mode::Normal,
+        }
+    }
+
     pub fn new(name: impl Into<String>, section: Option<String>) -> Self {
         Self {
             tabs: vec![ManPage::new(name, section)],
@@ -76,19 +84,26 @@ impl App {
         }
     }
 
+    pub fn has_tabs(&self) -> bool {
+        !self.tabs.is_empty()
+    }
+
     pub fn title(&self) -> String {
-        match self.active_page().section() {
-            Some(section) => format!("{}({})", self.active_page().name(), section),
-            None => self.active_page().name().to_string(),
+        let Some(page) = self.active_page() else {
+            return "Manifold".to_string();
+        };
+        match page.section() {
+            Some(section) => format!("{}({})", page.name(), section),
+            None => page.name().to_string(),
         }
     }
 
     pub fn lines(&self) -> &[String] {
-        self.active_page().lines()
+        self.active_page().map(ManPage::lines).unwrap_or(&[])
     }
 
     pub fn scroll(&self) -> usize {
-        self.active_page().scroll
+        self.active_page().map(|page| page.scroll).unwrap_or(0)
     }
 
     pub fn mode(&self) -> &Mode {
@@ -100,7 +115,7 @@ impl App {
     }
 
     pub fn search_query(&self) -> Option<&str> {
-        self.active_page().search_query()
+        self.active_page().and_then(ManPage::search_query)
     }
 
     pub fn active_index(&self) -> usize {
@@ -158,20 +173,29 @@ impl App {
         width: u16,
         viewport_height: usize,
     ) -> Result<(), RenderError> {
-        self.active_page_mut().ensure_render(renderer, width)?;
+        let Some(page) = self.active_page_mut() else {
+            return Ok(());
+        };
+        page.ensure_render(renderer, width)?;
         self.clamp_scroll(viewport_height);
         Ok(())
     }
 
     pub fn scroll_up(&mut self, amount: usize) {
-        let current = self.active_page().scroll;
-        self.active_page_mut().scroll = current.saturating_sub(amount);
+        let Some(page) = self.active_page_mut() else {
+            return;
+        };
+        let current = page.scroll;
+        page.scroll = current.saturating_sub(amount);
     }
 
     pub fn scroll_down(&mut self, amount: usize, viewport_height: usize) {
         let max_scroll = self.max_scroll(viewport_height);
-        let next = (self.active_page().scroll + amount).min(max_scroll);
-        self.active_page_mut().scroll = next;
+        let Some(page) = self.active_page_mut() else {
+            return;
+        };
+        let next = (page.scroll + amount).min(max_scroll);
+        page.scroll = next;
     }
 
     pub fn page_up(&mut self, viewport_height: usize) {
@@ -193,23 +217,33 @@ impl App {
     }
 
     pub fn go_top(&mut self) {
-        self.active_page_mut().scroll = 0;
+        if let Some(page) = self.active_page_mut() {
+            page.scroll = 0;
+        }
     }
 
     pub fn go_bottom(&mut self, viewport_height: usize) {
         let max_scroll = self.max_scroll(viewport_height);
-        self.active_page_mut().scroll = max_scroll;
+        if let Some(page) = self.active_page_mut() {
+            page.scroll = max_scroll;
+        }
     }
 
     pub fn clamp_scroll(&mut self, viewport_height: usize) {
         let max_scroll = self.max_scroll(viewport_height);
-        if self.active_page().scroll > max_scroll {
-            self.active_page_mut().scroll = max_scroll;
+        let Some(page) = self.active_page_mut() else {
+            return;
+        };
+        if page.scroll > max_scroll {
+            page.scroll = max_scroll;
         }
     }
 
     fn max_scroll(&self, viewport_height: usize) -> usize {
-        let lines = self.active_page().line_count();
+        let Some(page) = self.active_page() else {
+            return 0;
+        };
+        let lines = page.line_count();
         if lines == 0 {
             return 0;
         }
@@ -217,12 +251,12 @@ impl App {
         lines.saturating_sub(visible)
     }
 
-    fn active_page(&self) -> &ManPage {
-        &self.tabs[self.active]
+    fn active_page(&self) -> Option<&ManPage> {
+        self.tabs.get(self.active)
     }
 
-    fn active_page_mut(&mut self) -> &mut ManPage {
-        &mut self.tabs[self.active]
+    fn active_page_mut(&mut self) -> Option<&mut ManPage> {
+        self.tabs.get_mut(self.active)
     }
 
     fn enter_command_mode(&mut self) {
@@ -244,10 +278,10 @@ impl App {
     }
 
     fn enter_search_mode(&mut self) {
-        let previous = self
-            .active_page()
-            .search_query()
-            .map(|value| value.to_string());
+        let Some(page) = self.active_page() else {
+            return;
+        };
+        let previous = page.search_query().map(|value| value.to_string());
         self.mode = Mode::Search {
             line: String::new(),
             previous,
@@ -292,26 +326,34 @@ impl App {
         };
         if let Some(prev) = previous {
             self.apply_search(&prev, viewport_height);
-        } else {
-            self.active_page_mut().clear_search();
+        } else if let Some(page) = self.active_page_mut() {
+            page.clear_search();
         }
         self.mode = Mode::Normal;
     }
 
     fn search_next(&mut self, viewport_height: usize) {
-        if let Some(line) = self.active_page_mut().next_match_line() {
+        let Some(page) = self.active_page_mut() else {
+            return;
+        };
+        if let Some(line) = page.next_match_line() {
             self.center_on_line(line, viewport_height);
         }
     }
 
     fn search_prev(&mut self, viewport_height: usize) {
-        if let Some(line) = self.active_page_mut().previous_match_line() {
+        let Some(page) = self.active_page_mut() else {
+            return;
+        };
+        if let Some(line) = page.previous_match_line() {
             self.center_on_line(line, viewport_height);
         }
     }
 
     fn search_clear(&mut self) {
-        self.active_page_mut().clear_search();
+        if let Some(page) = self.active_page_mut() {
+            page.clear_search();
+        }
     }
 
     fn switch_tab_left(
@@ -328,7 +370,9 @@ impl App {
         } else {
             self.active -= 1;
         }
-        self.active_page_mut().ensure_render(renderer, width)?;
+        if let Some(page) = self.active_page_mut() {
+            page.ensure_render(renderer, width)?;
+        }
         self.clamp_scroll(viewport_height);
         Ok(())
     }
@@ -343,7 +387,9 @@ impl App {
             return Ok(());
         }
         self.active = (self.active + 1) % self.tabs.len();
-        self.active_page_mut().ensure_render(renderer, width)?;
+        if let Some(page) = self.active_page_mut() {
+            page.ensure_render(renderer, width)?;
+        }
         self.clamp_scroll(viewport_height);
         Ok(())
     }
@@ -359,7 +405,9 @@ impl App {
             ParsedCommand::Man { topic, section } => {
                 self.tabs.push(ManPage::new(topic, section));
                 self.active = self.tabs.len() - 1;
-                self.active_page_mut().ensure_render(renderer, width)?;
+                if let Some(page) = self.active_page_mut() {
+                    page.ensure_render(renderer, width)?;
+                }
                 self.clamp_scroll(viewport_height);
                 Ok(UpdateOutcome::Continue)
             }
@@ -370,11 +418,13 @@ impl App {
     }
 
     fn apply_search(&mut self, line: &str, viewport_height: usize) {
+        let Some(page) = self.active_page_mut() else {
+            return;
+        };
         let query = line.to_string();
-        let start_line = self.active_page().scroll;
-        self.active_page_mut()
-            .update_search(Some(query), start_line);
-        if let Some(match_line) = self.active_page().current_match_line() {
+        let start_line = page.scroll;
+        page.update_search(Some(query), start_line);
+        if let Some(match_line) = page.current_match_line() {
             self.center_on_line(match_line, viewport_height);
         }
     }
@@ -383,7 +433,9 @@ impl App {
         let half = viewport_height / 2;
         let max_scroll = self.max_scroll(viewport_height);
         let desired = line.saturating_sub(half).min(max_scroll);
-        self.active_page_mut().scroll = desired;
+        if let Some(page) = self.active_page_mut() {
+            page.scroll = desired;
+        }
     }
 }
 

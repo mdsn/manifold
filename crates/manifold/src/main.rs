@@ -1,16 +1,34 @@
 use app::{Action, App, UpdateOutcome};
+use clap::Parser;
 use input::map_event;
 use platform::{EventStream, PlatformEvent, TerminalContext};
 use render::SystemManRenderer;
 use std::error::Error;
 use std::time::Duration;
 
+#[derive(Parser, Debug)]
+#[command(name = "manifold", about = "Tabbed CLI man page reader", version)]
+struct Cli {
+    #[arg(
+        value_names = ["SECTION", "TOPIC"],
+        num_args = 0..=2,
+        help = "Man page to open (TOPIC or SECTION TOPIC)"
+    )]
+    args: Vec<String>,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    let cli = Cli::parse();
     let mut terminal = TerminalContext::new()?;
     let events = EventStream::new(Duration::from_millis(200));
     let renderer = SystemManRenderer::new();
 
-    let mut app = App::new("open", Some("2".to_string()));
+    let mut app = match cli.args.as_slice() {
+        [] => App::empty(),
+        [topic] => App::new(topic.clone(), None),
+        [section, topic] => App::new(topic.clone(), Some(section.clone())),
+        _ => App::empty(),
+    };
 
     let size = terminal.terminal_mut().size()?;
     let mut content_width = size.width.max(1);

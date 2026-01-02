@@ -1,6 +1,6 @@
 use app::{App, Mode};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -12,12 +12,22 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let tab_line = format_tabs(app);
     frame.render_widget(Paragraph::new(tab_line), chunks[0]);
 
-    let text: Vec<Line> = build_lines(app);
-    let paragraph = Paragraph::new(text).scroll((app.scroll() as u16, 0));
-    frame.render_widget(paragraph, chunks[1]);
+    if app.has_tabs() {
+        let text: Vec<Line> = build_lines(app);
+        let paragraph = Paragraph::new(text).scroll((app.scroll() as u16, 0));
+        frame.render_widget(paragraph, chunks[1]);
+    } else {
+        draw_intro(frame, chunks[1]);
+    }
 
     let status = match app.mode() {
-        Mode::Normal => format!("{}  line {}", app.title(), app.scroll() + 1),
+        Mode::Normal => {
+            if app.has_tabs() {
+                format!("{}  line {}", app.title(), app.scroll() + 1)
+            } else {
+                String::new()
+            }
+        }
         Mode::Command { line } => format!(":{line}"),
         Mode::Search { line, .. } => format!("/{line}"),
     };
@@ -106,6 +116,28 @@ fn highlight_line(line: &str, query: &str, style: Style) -> Line<'static> {
         spans.push(Span::raw(line[offset..].to_string()));
     }
     Line::from(spans)
+}
+
+fn draw_intro(frame: &mut Frame, area: Rect) {
+    let lines = vec![
+        Line::from("Manifold"),
+        Line::from(""),
+        Line::from("Type :man 2 open to open a man page."),
+    ];
+    let height = lines.len() as u16;
+    let rect = centered_rect(area, height);
+    let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
+    frame.render_widget(paragraph, rect);
+}
+
+fn centered_rect(area: Rect, height: u16) -> Rect {
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    Rect {
+        x: area.x,
+        y,
+        width: area.width,
+        height,
+    }
 }
 
 fn set_prompt_cursor(frame: &mut Frame, area: Rect, line: &str) {
