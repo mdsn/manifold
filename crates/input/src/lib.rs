@@ -12,6 +12,8 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Char('G') => Some(Action::GoBottom),
                 KeyCode::Char('u') => Some(Action::HalfPageUp),
                 KeyCode::Char('d') => Some(Action::HalfPageDown),
+                KeyCode::Char('b') => Some(Action::PageUp),
+                KeyCode::Char('f') => Some(Action::PageDown),
                 KeyCode::Char('H') => Some(Action::TabLeft),
                 KeyCode::Char('L') => Some(Action::TabRight),
                 KeyCode::Char(':') => Some(Action::EnterCommandMode),
@@ -80,6 +82,14 @@ mod tests {
         );
         assert_eq!(
             map_event(Event::Key(KeyCode::PageDown), &Mode::Normal),
+            Some(Action::PageDown)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('b')), &Mode::Normal),
+            Some(Action::PageUp)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('f')), &Mode::Normal),
             Some(Action::PageDown)
         );
     }
