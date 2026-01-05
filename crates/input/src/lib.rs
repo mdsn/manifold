@@ -16,6 +16,7 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Char('f') => Some(Action::PageDown),
                 KeyCode::Char('H') => Some(Action::TabLeft),
                 KeyCode::Char('L') => Some(Action::TabRight),
+                KeyCode::Char('?') => Some(Action::EnterHelp),
                 KeyCode::Char(':') => Some(Action::EnterCommandMode),
                 KeyCode::Char('/') => Some(Action::EnterSearchMode),
                 KeyCode::Char('n') => Some(Action::SearchNext),
@@ -43,6 +44,10 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Char(value) if value == ' ' || value.is_ascii_graphic() => {
                     Some(Action::SearchChar(value))
                 }
+                _ => None,
+            },
+            Mode::Help => match code {
+                KeyCode::Char('q') => Some(Action::ExitHelp),
                 _ => None,
             },
         },
@@ -145,6 +150,10 @@ mod tests {
             map_event(Event::Key(KeyCode::Char(':')), &Mode::Normal),
             Some(Action::EnterCommandMode)
         );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('?')), &Mode::Normal),
+            Some(Action::EnterHelp)
+        );
     }
 
     #[test]
@@ -216,5 +225,14 @@ mod tests {
             map_event(Event::Key(KeyCode::Esc), &mode),
             Some(Action::SearchCancel)
         );
+    }
+
+    #[test]
+    fn maps_help_mode_keys() {
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('q')), &Mode::Help),
+            Some(Action::ExitHelp)
+        );
+        assert_eq!(map_event(Event::Key(KeyCode::Char('j')), &Mode::Help), None);
     }
 }

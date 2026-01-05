@@ -7,6 +7,12 @@ use ratatui::widgets::Paragraph;
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let size = frame.size();
+
+    if matches!(app.mode(), Mode::Help) {
+        draw_help(frame, size);
+        return;
+    }
+
     let chunks = layout(size);
 
     let tab_line = format_tabs(app);
@@ -28,6 +34,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
                 String::new()
             }
         }
+        Mode::Help => String::new(),
         Mode::Command { line } => format!(":{line}"),
         Mode::Search { line, .. } => format!("/{line}"),
     };
@@ -36,7 +43,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     match app.mode() {
         Mode::Command { line } => set_prompt_cursor(frame, chunks[2], line),
         Mode::Search { line, .. } => set_prompt_cursor(frame, chunks[2], line),
-        Mode::Normal => {}
+        Mode::Normal | Mode::Help => {}
     }
 }
 
@@ -123,11 +130,37 @@ fn draw_intro(frame: &mut Frame, area: Rect) {
         Line::from("Manifold"),
         Line::from(""),
         Line::from("Type :man 2 open to open a man page."),
+        Line::from("Press ? for help."),
     ];
     let height = lines.len() as u16;
     let rect = centered_rect(area, height);
     let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
     frame.render_widget(paragraph, rect);
+}
+
+fn draw_help(frame: &mut Frame, area: Rect) {
+    let lines = vec![
+        Line::from("Manifold Help"),
+        Line::from(""),
+        Line::from("Commands"),
+        Line::from("  :man [SECTION] TOPIC   Open a man page"),
+        Line::from("  :help, :h              Show this help"),
+        Line::from("  :wipe, :w              Close current tab"),
+        Line::from("  :quit, :q              Quit Manifold"),
+        Line::from(""),
+        Line::from("Keys"),
+        Line::from("  j/k, Up/Down           Scroll line"),
+        Line::from("  f/b, PageDown/PageUp   Forward/back a page"),
+        Line::from("  d/u                    Half page down/up"),
+        Line::from("  g/G                    Top/bottom"),
+        Line::from("  H/L                    Previous/next tab"),
+        Line::from("  /                      Search"),
+        Line::from("  n/p                    Next/previous match"),
+        Line::from("  ?                      Show help"),
+        Line::from("  q                      Quit help"),
+    ];
+    let paragraph = Paragraph::new(lines).alignment(Alignment::Left);
+    frame.render_widget(paragraph, area);
 }
 
 fn centered_rect(area: Rect, height: u16) -> Rect {

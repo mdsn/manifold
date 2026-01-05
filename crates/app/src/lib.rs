@@ -15,6 +15,8 @@ pub enum Action {
     GoBottom,
     TabLeft,
     TabRight,
+    EnterHelp,
+    ExitHelp,
     EnterCommandMode,
     CommandChar(char),
     CommandBackspace,
@@ -33,6 +35,7 @@ pub enum Action {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
     Normal,
+    Help,
     Command {
         line: String,
     },
@@ -48,6 +51,7 @@ enum ParsedCommand {
         topic: String,
         section: Option<String>,
     },
+    Help,
     Quit,
     Wipe,
     Empty,
@@ -142,6 +146,8 @@ impl App {
             Action::GoBottom => self.go_bottom(viewport_height),
             Action::TabLeft => self.switch_tab_left(renderer, width, viewport_height)?,
             Action::TabRight => self.switch_tab_right(renderer, width, viewport_height)?,
+            Action::EnterHelp => self.mode = Mode::Help,
+            Action::ExitHelp => self.mode = Mode::Normal,
             Action::EnterCommandMode => self.enter_command_mode(),
             Action::CommandChar(value) => self.command_char(value),
             Action::CommandBackspace => self.command_backspace(),
@@ -158,6 +164,7 @@ impl App {
                 let line = match std::mem::replace(&mut self.mode, Mode::Normal) {
                     Mode::Command { line } => line,
                     Mode::Normal => String::new(),
+                    Mode::Help => String::new(),
                     Mode::Search { line, .. } => line,
                 };
                 let command = parse_command(&line);
@@ -411,6 +418,10 @@ impl App {
                 self.clamp_scroll(viewport_height);
                 Ok(UpdateOutcome::Continue)
             }
+            ParsedCommand::Help => {
+                self.mode = Mode::Help;
+                Ok(UpdateOutcome::Continue)
+            }
             ParsedCommand::Quit => Ok(UpdateOutcome::Quit),
             ParsedCommand::Wipe => {
                 if self.tabs.is_empty() {
@@ -481,6 +492,7 @@ fn parse_command(line: &str) -> ParsedCommand {
                 _ => ParsedCommand::Unknown,
             }
         }
+        "help" | "h" => ParsedCommand::Help,
         "quit" | "q" => ParsedCommand::Quit,
         "wipe" | "w" => ParsedCommand::Wipe,
         _ => ParsedCommand::Unknown,
@@ -559,6 +571,8 @@ mod tests {
         assert_eq!(parse_command("q"), ParsedCommand::Quit);
         assert_eq!(parse_command("wipe"), ParsedCommand::Wipe);
         assert_eq!(parse_command("w"), ParsedCommand::Wipe);
+        assert_eq!(parse_command("help"), ParsedCommand::Help);
+        assert_eq!(parse_command("h"), ParsedCommand::Help);
         assert_eq!(parse_command(""), ParsedCommand::Empty);
         assert_eq!(parse_command("bogus"), ParsedCommand::Unknown);
     }
