@@ -17,9 +17,13 @@ struct Cli {
     args: Vec<String>,
 }
 
+type PageTopics = Vec<String>;
+type PageSection = Option<String>;
+type PageSelection = (PageTopics, PageSection);
+
 fn resolve_initial_pages(
     args: &[String],
-) -> Result<Option<(Vec<String>, Option<String>)>, ValidationError> {
+) -> Result<Option<PageSelection>, ValidationError> {
     match args {
         [] => Ok(None),
         [topic] => Ok(Some((vec![topic.clone()], None))),
