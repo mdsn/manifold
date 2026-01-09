@@ -69,6 +69,7 @@ pub struct App {
     tabs: Vec<ManPage>,
     active: usize,
     mode: Mode,
+    status_message: Option<String>,
 }
 
 impl App {
@@ -77,6 +78,7 @@ impl App {
             tabs: Vec::new(),
             active: 0,
             mode: Mode::Normal,
+            status_message: None,
         }
     }
 
@@ -85,6 +87,7 @@ impl App {
             tabs: vec![ManPage::new(name, section)],
             active: 0,
             mode: Mode::Normal,
+            status_message: None,
         }
     }
 
@@ -114,6 +117,14 @@ impl App {
         &self.mode
     }
 
+    pub fn status_message(&self) -> Option<&str> {
+        self.status_message.as_deref()
+    }
+
+    pub fn set_error(&mut self, message: impl Into<String>) {
+        self.status_message = Some(message.into());
+    }
+
     pub fn tabs(&self) -> &[ManPage] {
         &self.tabs
     }
@@ -133,6 +144,9 @@ impl App {
         width: u16,
         viewport_height: usize,
     ) -> Result<UpdateOutcome, RenderError> {
+        if self.status_message.is_some() && should_clear_status(&action) {
+            self.status_message = None;
+        }
         match action {
             Action::Quit => return Ok(UpdateOutcome::Quit),
             Action::ScrollUp(amount) => self.scroll_up(amount),
@@ -465,6 +479,10 @@ impl App {
             page.scroll = desired;
         }
     }
+}
+
+fn should_clear_status(action: &Action) -> bool {
+    !matches!(action, Action::Resize(_, _) | Action::Quit)
 }
 
 fn parse_command(line: &str) -> ParsedCommand {

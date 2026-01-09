@@ -28,7 +28,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     let status = match app.mode() {
         Mode::Normal => {
-            if app.has_tabs() {
+            if let Some(message) = app.status_message() {
+                message.to_string()
+            } else if app.has_tabs() {
                 format!("{}  line {}", app.title(), app.scroll() + 1)
             } else {
                 String::new()
