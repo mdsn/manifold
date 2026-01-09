@@ -55,7 +55,7 @@ enum ParsedCommand {
     Quit,
     Wipe,
     Empty,
-    Unknown,
+    Unknown(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -465,7 +465,11 @@ impl App {
                 self.clamp_scroll(viewport_height);
                 Ok(UpdateOutcome::Continue)
             }
-            ParsedCommand::Empty | ParsedCommand::Unknown => Ok(UpdateOutcome::Continue),
+            ParsedCommand::Empty => Ok(UpdateOutcome::Continue),
+            ParsedCommand::Unknown(command) => {
+                self.status_message = Some(format!("Unknown command '{command}'"));
+                Ok(UpdateOutcome::Continue)
+            }
         }
     }
 
@@ -517,13 +521,13 @@ fn parse_command(line: &str) -> ParsedCommand {
                     topic: (*topic).to_string(),
                     section: Some((*section).to_string()),
                 },
-                _ => ParsedCommand::Unknown,
+                _ => ParsedCommand::Unknown(command.to_string()),
             }
         }
         "help" | "h" => ParsedCommand::Help,
         "quit" | "q" => ParsedCommand::Quit,
         "wipe" | "w" => ParsedCommand::Wipe,
-        _ => ParsedCommand::Unknown,
+        _ => ParsedCommand::Unknown(command.to_string()),
     }
 }
 
@@ -617,7 +621,10 @@ mod tests {
         assert_eq!(parse_command("help"), ParsedCommand::Help);
         assert_eq!(parse_command("h"), ParsedCommand::Help);
         assert_eq!(parse_command(""), ParsedCommand::Empty);
-        assert_eq!(parse_command("bogus"), ParsedCommand::Unknown);
+        assert_eq!(
+            parse_command("bogus"),
+            ParsedCommand::Unknown("bogus".to_string())
+        );
     }
 
     #[test]
