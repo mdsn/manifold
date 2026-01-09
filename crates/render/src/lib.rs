@@ -107,14 +107,12 @@ impl ManRenderer for SystemManRenderer {
             let mut error_output = Vec::new();
             man_stderr.read_to_end(&mut error_output)?;
             let message = String::from_utf8_lossy(&error_output).trim().to_string();
-            return Err(RenderError::CommandFailed(format!(
-                "{}",
-                if message.is_empty() {
-                    format!("man exited with {man_status}")
-                } else {
-                    message
-                }
-            )));
+            let message = if message.is_empty() {
+                format!("man exited with {man_status}")
+            } else {
+                message
+            };
+            return Err(RenderError::CommandFailed(message));
         }
 
         let col_status = col_child.wait()?;

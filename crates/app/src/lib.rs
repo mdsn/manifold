@@ -502,18 +502,18 @@ impl App {
         for topic in topics {
             self.tabs.push(ManPage::new(topic, section.clone()));
             self.active = self.tabs.len() - 1;
-            if let Some(page) = self.active_page_mut() {
-                if let Err(err) = page.ensure_render(renderer, width) {
-                    self.tabs.remove(self.active);
-                    if self.active >= self.tabs.len() && !self.tabs.is_empty() {
-                        self.active = self.tabs.len() - 1;
-                    }
-                    if let RenderError::CommandFailed(message) = err {
-                        last_error = Some(message);
-                        continue;
-                    }
-                    return Err(err);
+            if let Some(page) = self.active_page_mut()
+                && let Err(err) = page.ensure_render(renderer, width)
+            {
+                self.tabs.remove(self.active);
+                if self.active >= self.tabs.len() && !self.tabs.is_empty() {
+                    self.active = self.tabs.len() - 1;
                 }
+                if let RenderError::CommandFailed(message) = err {
+                    last_error = Some(message);
+                    continue;
+                }
+                return Err(err);
             }
         }
         if let Some(message) = last_error {
