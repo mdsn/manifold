@@ -2,7 +2,7 @@ use app::{Action, App, UpdateOutcome};
 use clap::Parser;
 use input::map_event;
 use platform::{EventStream, PlatformEvent, TerminalContext};
-use render::SystemManRenderer;
+use render::{ManRenderer, SystemManRenderer};
 use std::error::Error;
 use std::time::Duration;
 
@@ -19,9 +19,28 @@ struct Cli {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
+    let renderer = SystemManRenderer::new();
+
+    if let [topic] = cli.args.as_slice() {
+        if let Err(err) = renderer.render(topic, None, 80) {
+            if let render::RenderError::CommandFailed(message) = err {
+                eprintln!("{message}");
+                return Ok(());
+            }
+            return Err(err.into());
+        }
+    } else if let [section, topic] = cli.args.as_slice() {
+        if let Err(err) = renderer.render(topic, Some(section), 80) {
+            if let render::RenderError::CommandFailed(message) = err {
+                eprintln!("{message}");
+                return Ok(());
+            }
+            return Err(err.into());
+        }
+    }
+
     let mut terminal = TerminalContext::new()?;
     let events = EventStream::new(Duration::from_millis(200));
-    let renderer = SystemManRenderer::new();
 
     let mut app = match cli.args.as_slice() {
         [] => App::empty(),
