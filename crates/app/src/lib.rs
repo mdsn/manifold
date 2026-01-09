@@ -1,5 +1,5 @@
 use man::ManPage;
-use render::{ManRenderer, RenderError};
+use render::{ArgsInterpretation, ManRenderer, RenderError, classify_args};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -517,10 +517,29 @@ fn parse_command(line: &str) -> ParsedCommand {
                     topic: (*topic).to_string(),
                     section: None,
                 },
-                [section, topic] => ParsedCommand::Man {
-                    topic: (*topic).to_string(),
-                    section: Some((*section).to_string()),
-                },
+                [_, ..] => {
+                    let interpretation = classify_args(&args).unwrap_or_else(|_| {
+                        ArgsInterpretation::Pages(
+                            args.iter().map(|value| value.to_string()).collect(),
+                        )
+                    });
+                    match interpretation {
+                        ArgsInterpretation::SectionAndPages { section, pages } => pages
+                            .first()
+                            .map(|page| ParsedCommand::Man {
+                                topic: page.clone(),
+                                section: Some(section),
+                            })
+                            .unwrap_or_else(|| ParsedCommand::Unknown(command.to_string())),
+                        ArgsInterpretation::Pages(pages) => pages
+                            .first()
+                            .map(|page| ParsedCommand::Man {
+                                topic: page.clone(),
+                                section: None,
+                            })
+                            .unwrap_or_else(|| ParsedCommand::Unknown(command.to_string())),
+                    }
+                }
                 _ => ParsedCommand::Unknown(command.to_string()),
             }
         }
@@ -535,6 +554,18 @@ fn parse_command(line: &str) -> ParsedCommand {
 mod tests {
     use super::*;
     use std::cell::Cell;
+    use std::process::{Command, Stdio};
+
+    fn man_available() -> bool {
+        Command::new("man")
+            .arg("-w")
+            .arg("man")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
 
     struct StubRenderer {
         calls: Cell<usize>,
@@ -607,13 +638,15 @@ mod tests {
                 section: None,
             }
         );
-        assert_eq!(
-            parse_command("man 2 read"),
-            ParsedCommand::Man {
-                topic: "read".to_string(),
-                section: Some("2".to_string()),
-            }
-        );
+        if man_available() {
+            assert_eq!(
+                parse_command("man 2 read"),
+                ParsedCommand::Man {
+                    topic: "read".to_string(),
+                    section: Some("2".to_string()),
+                }
+            );
+        }
         assert_eq!(parse_command("quit"), ParsedCommand::Quit);
         assert_eq!(parse_command("q"), ParsedCommand::Quit);
         assert_eq!(parse_command("wipe"), ParsedCommand::Wipe);

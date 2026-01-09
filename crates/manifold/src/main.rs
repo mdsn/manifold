@@ -2,7 +2,7 @@ use app::{Action, App, UpdateOutcome};
 use clap::Parser;
 use input::map_event;
 use platform::{EventStream, PlatformEvent, TerminalContext};
-use render::{ManRenderer, SystemManRenderer};
+use render::{ArgsInterpretation, ManRenderer, SystemManRenderer, ValidationError, classify_args};
 use std::error::Error;
 use std::time::Duration;
 
@@ -11,26 +11,39 @@ use std::time::Duration;
 struct Cli {
     #[arg(
         value_names = ["SECTION", "TOPIC"],
-        num_args = 0..=2,
+        num_args = 0..,
         help = "Man page to open (TOPIC or SECTION TOPIC)"
     )]
     args: Vec<String>,
+}
+
+fn resolve_initial_page(
+    args: &[String],
+) -> Result<Option<(String, Option<String>)>, ValidationError> {
+    match args {
+        [] => Ok(None),
+        [topic] => Ok(Some((topic.clone(), None))),
+        _ => {
+            let interpretation = classify_args(args)?;
+            match interpretation {
+                ArgsInterpretation::SectionAndPages { section, pages } => {
+                    Ok(pages.first().map(|page| (page.clone(), Some(section))))
+                }
+                ArgsInterpretation::Pages(pages) => {
+                    Ok(pages.first().map(|page| (page.clone(), None)))
+                }
+            }
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
     let renderer = SystemManRenderer::new();
 
-    if let [topic] = cli.args.as_slice() {
-        if let Err(err) = renderer.render(topic, None, 80) {
-            if let render::RenderError::CommandFailed(message) = err {
-                eprintln!("{message}");
-                return Ok(());
-            }
-            return Err(err.into());
-        }
-    } else if let [section, topic] = cli.args.as_slice() {
-        if let Err(err) = renderer.render(topic, Some(section), 80) {
+    let initial_page = resolve_initial_page(&cli.args)?;
+    if let Some((topic, section)) = &initial_page {
+        if let Err(err) = renderer.render(topic, section.as_deref(), 80) {
             if let render::RenderError::CommandFailed(message) = err {
                 eprintln!("{message}");
                 return Ok(());
@@ -42,11 +55,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = TerminalContext::new()?;
     let events = EventStream::new(Duration::from_millis(200));
 
-    let mut app = match cli.args.as_slice() {
-        [] => App::empty(),
-        [topic] => App::new(topic.clone(), None),
-        [section, topic] => App::new(topic.clone(), Some(section.clone())),
-        _ => App::empty(),
+    let mut app = match initial_page {
+        Some((topic, section)) => App::new(topic, section),
+        None => App::empty(),
     };
 
     let size = terminal.terminal_mut().size()?;

@@ -11,6 +11,22 @@ pub enum ValidationError {
     Io(std::io::Error),
 }
 
+impl std::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValidationError::Io(err) => write!(f, "io error: {err}"),
+        }
+    }
+}
+
+impl std::error::Error for ValidationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ValidationError::Io(err) => Some(err),
+        }
+    }
+}
+
 impl From<std::io::Error> for ValidationError {
     fn from(value: std::io::Error) -> Self {
         ValidationError::Io(value)
