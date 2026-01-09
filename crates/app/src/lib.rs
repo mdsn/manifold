@@ -48,7 +48,7 @@ pub enum Mode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ParsedCommand {
     Man {
-        topic: String,
+        topics: Vec<String>,
         section: Option<String>,
     },
     Help,
@@ -186,6 +186,17 @@ impl App {
             }
         }
         Ok(UpdateOutcome::Continue)
+    }
+
+    pub fn open_pages(
+        &mut self,
+        topics: Vec<String>,
+        section: Option<String>,
+        renderer: &dyn ManRenderer,
+        width: u16,
+        viewport_height: usize,
+    ) -> Result<(), RenderError> {
+        self.open_pages_internal(topics, section, renderer, width, viewport_height)
     }
 
     pub fn resize_active(
@@ -423,23 +434,8 @@ impl App {
         viewport_height: usize,
     ) -> Result<UpdateOutcome, RenderError> {
         match command {
-            ParsedCommand::Man { topic, section } => {
-                self.tabs.push(ManPage::new(topic, section));
-                self.active = self.tabs.len() - 1;
-                if let Some(page) = self.active_page_mut() {
-                    if let Err(err) = page.ensure_render(renderer, width) {
-                        self.tabs.remove(self.active);
-                        if self.active >= self.tabs.len() && !self.tabs.is_empty() {
-                            self.active = self.tabs.len() - 1;
-                        }
-                        if let RenderError::CommandFailed(message) = err {
-                            self.status_message = Some(message);
-                            return Ok(UpdateOutcome::Continue);
-                        }
-                        return Err(err);
-                    }
-                }
-                self.clamp_scroll(viewport_height);
+            ParsedCommand::Man { topics, section } => {
+                self.open_pages_internal(topics, section, renderer, width, viewport_height)?;
                 Ok(UpdateOutcome::Continue)
             }
             ParsedCommand::Help => {
@@ -493,6 +489,41 @@ impl App {
             page.scroll = desired;
         }
     }
+
+    fn open_pages_internal(
+        &mut self,
+        topics: Vec<String>,
+        section: Option<String>,
+        renderer: &dyn ManRenderer,
+        width: u16,
+        viewport_height: usize,
+    ) -> Result<(), RenderError> {
+        let mut last_error = None;
+        for topic in topics {
+            self.tabs.push(ManPage::new(topic, section.clone()));
+            self.active = self.tabs.len() - 1;
+            if let Some(page) = self.active_page_mut() {
+                if let Err(err) = page.ensure_render(renderer, width) {
+                    self.tabs.remove(self.active);
+                    if self.active >= self.tabs.len() && !self.tabs.is_empty() {
+                        self.active = self.tabs.len() - 1;
+                    }
+                    if let RenderError::CommandFailed(message) = err {
+                        last_error = Some(message);
+                        continue;
+                    }
+                    return Err(err);
+                }
+            }
+        }
+        if let Some(message) = last_error {
+            self.status_message = Some(message);
+        }
+        if !self.tabs.is_empty() {
+            self.clamp_scroll(viewport_height);
+        }
+        Ok(())
+    }
 }
 
 fn should_clear_status(action: &Action) -> bool {
@@ -514,7 +545,7 @@ fn parse_command(line: &str) -> ParsedCommand {
             let args: Vec<&str> = parts.collect();
             match args.as_slice() {
                 [topic] => ParsedCommand::Man {
-                    topic: (*topic).to_string(),
+                    topics: vec![(*topic).to_string()],
                     section: None,
                 },
                 [_, ..] => {
@@ -524,20 +555,26 @@ fn parse_command(line: &str) -> ParsedCommand {
                         )
                     });
                     match interpretation {
-                        ArgsInterpretation::SectionAndPages { section, pages } => pages
-                            .first()
-                            .map(|page| ParsedCommand::Man {
-                                topic: page.clone(),
-                                section: Some(section),
-                            })
-                            .unwrap_or_else(|| ParsedCommand::Unknown(command.to_string())),
-                        ArgsInterpretation::Pages(pages) => pages
-                            .first()
-                            .map(|page| ParsedCommand::Man {
-                                topic: page.clone(),
-                                section: None,
-                            })
-                            .unwrap_or_else(|| ParsedCommand::Unknown(command.to_string())),
+                        ArgsInterpretation::SectionAndPages { section, pages } => {
+                            if pages.is_empty() {
+                                ParsedCommand::Unknown(command.to_string())
+                            } else {
+                                ParsedCommand::Man {
+                                    topics: pages,
+                                    section: Some(section),
+                                }
+                            }
+                        }
+                        ArgsInterpretation::Pages(pages) => {
+                            if pages.is_empty() {
+                                ParsedCommand::Unknown(command.to_string())
+                            } else {
+                                ParsedCommand::Man {
+                                    topics: pages,
+                                    section: None,
+                                }
+                            }
+                        }
                     }
                 }
                 _ => ParsedCommand::Unknown(command.to_string()),
@@ -634,7 +671,7 @@ mod tests {
         assert_eq!(
             parse_command("man ls"),
             ParsedCommand::Man {
-                topic: "ls".to_string(),
+                topics: vec!["ls".to_string()],
                 section: None,
             }
         );
@@ -642,7 +679,7 @@ mod tests {
             assert_eq!(
                 parse_command("man 2 read"),
                 ParsedCommand::Man {
-                    topic: "read".to_string(),
+                    topics: vec!["read".to_string()],
                     section: Some("2".to_string()),
                 }
             );
