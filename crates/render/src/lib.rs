@@ -4,7 +4,7 @@ use std::process::{Command, Stdio};
 
 mod args_validation;
 
-pub use args_validation::{classify_args, ArgsInterpretation, ValidationError};
+pub use args_validation::{ArgsInterpretation, ValidationError, classify_args};
 
 #[derive(Debug)]
 pub enum RenderError {

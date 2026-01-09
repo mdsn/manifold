@@ -27,17 +27,12 @@ pub fn classify_args<S: AsRef<str>>(args: &[S]) -> Result<ArgsInterpretation, Va
     }
 
     let section_candidate = first.as_ref();
-    let pages: Vec<String> = rest.iter().map(|value| value.as_ref().to_string()).collect();
+    let pages: Vec<String> = rest
+        .iter()
+        .map(|value| value.as_ref().to_string())
+        .collect();
 
-    let mut all_in_section = true;
-    for page in &pages {
-        if !man_page_exists_in_section(section_candidate, page)? {
-            all_in_section = false;
-            break;
-        }
-    }
-
-    if all_in_section {
+    if section_has_any_pages(section_candidate, &pages)? {
         Ok(ArgsInterpretation::SectionAndPages {
             section: section_candidate.to_string(),
             pages,
@@ -50,16 +45,23 @@ pub fn classify_args<S: AsRef<str>>(args: &[S]) -> Result<ArgsInterpretation, Va
     }
 }
 
-fn man_page_exists_in_section(section: &str, page: &str) -> Result<bool, ValidationError> {
-    let status = Command::new("man")
+fn section_has_any_pages(section: &str, pages: &[String]) -> Result<bool, ValidationError> {
+    let output = Command::new("man")
         .arg("-w")
         .arg("-S")
         .arg(section)
-        .arg(page)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
-    Ok(status.success())
+        .args(pages)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()?;
+
+    let mut combined = Vec::new();
+    combined.extend_from_slice(&output.stdout);
+    combined.extend_from_slice(&output.stderr);
+    let text = String::from_utf8_lossy(&combined);
+    Ok(text
+        .lines()
+        .any(|line| !line.trim().is_empty() && line.contains('/')))
 }
 
 #[cfg(test)]
@@ -111,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_pages_when_any_page_missing_in_section() {
+    fn treats_section_as_valid_when_any_page_matches() {
         if !man_available() {
             return;
         }
@@ -121,11 +123,10 @@ mod tests {
 
         assert_eq!(
             result,
-            ArgsInterpretation::Pages(vec![
-                "1".to_string(),
-                "man".to_string(),
-                "definitelynotapage".to_string()
-            ])
+            ArgsInterpretation::SectionAndPages {
+                section: "1".to_string(),
+                pages: vec!["man".to_string(), "definitelynotapage".to_string()],
+            }
         );
     }
 
@@ -134,9 +135,6 @@ mod tests {
         let args = ["man"];
         let result = classify_args(&args).expect("classification failed");
 
-        assert_eq!(
-            result,
-            ArgsInterpretation::Pages(vec!["man".to_string()])
-        );
+        assert_eq!(result, ArgsInterpretation::Pages(vec!["man".to_string()]));
     }
 }
