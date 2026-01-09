@@ -75,12 +75,17 @@ impl ManRenderer for SystemManRenderer {
         }
         man_cmd.arg(name);
         man_cmd.stdout(Stdio::piped());
+        man_cmd.stderr(Stdio::piped());
 
         let mut man_child = man_cmd.spawn()?;
         let man_stdout = man_child
             .stdout
             .take()
             .ok_or_else(|| RenderError::CommandFailed("man stdout unavailable".to_string()))?;
+        let mut man_stderr = man_child
+            .stderr
+            .take()
+            .ok_or_else(|| RenderError::CommandFailed("man stderr unavailable".to_string()))?;
 
         let mut col_child = Command::new("col")
             .arg("-bx")
@@ -95,8 +100,16 @@ impl ManRenderer for SystemManRenderer {
 
         let man_status = man_child.wait()?;
         if !man_status.success() {
+            let mut error_output = Vec::new();
+            man_stderr.read_to_end(&mut error_output)?;
+            let message = String::from_utf8_lossy(&error_output).trim().to_string();
             return Err(RenderError::CommandFailed(format!(
-                "man exited with {man_status}"
+                "{}",
+                if message.is_empty() {
+                    format!("man exited with {man_status}")
+                } else {
+                    message
+                }
             )));
         }
 

@@ -427,7 +427,17 @@ impl App {
                 self.tabs.push(ManPage::new(topic, section));
                 self.active = self.tabs.len() - 1;
                 if let Some(page) = self.active_page_mut() {
-                    page.ensure_render(renderer, width)?;
+                    if let Err(err) = page.ensure_render(renderer, width) {
+                        self.tabs.remove(self.active);
+                        if self.active >= self.tabs.len() && !self.tabs.is_empty() {
+                            self.active = self.tabs.len() - 1;
+                        }
+                        if let RenderError::CommandFailed(message) = err {
+                            self.status_message = Some(message);
+                            return Ok(UpdateOutcome::Continue);
+                        }
+                        return Err(err);
+                    }
                 }
                 self.clamp_scroll(viewport_height);
                 Ok(UpdateOutcome::Continue)
@@ -566,6 +576,21 @@ mod tests {
             _width: u16,
         ) -> Result<Vec<String>, RenderError> {
             Ok(self.lines.clone())
+        }
+    }
+
+    struct FailingRenderer;
+
+    impl ManRenderer for FailingRenderer {
+        fn render(
+            &self,
+            _name: &str,
+            _section: Option<&str>,
+            _width: u16,
+        ) -> Result<Vec<String>, RenderError> {
+            Err(RenderError::CommandFailed(
+                "No manual entry for seek".to_string(),
+            ))
         }
     }
 
@@ -722,5 +747,24 @@ mod tests {
         assert_eq!(app.tabs.len(), 1);
         assert_eq!(app.active, 0);
         assert_eq!(app.title(), "open");
+    }
+
+    #[test]
+    fn man_command_sets_status_on_missing_page() {
+        let renderer = FailingRenderer;
+        let width: u16 = 80;
+        let height: usize = 10;
+        let mut app = App::new("open", None);
+        app.update(Action::EnterCommandMode, &renderer, width, height)
+            .unwrap();
+        for ch in "man seek".chars() {
+            app.update(Action::CommandChar(ch), &renderer, width, height)
+                .unwrap();
+        }
+        app.update(Action::CommandSubmit, &renderer, width, height)
+            .unwrap();
+        assert_eq!(app.tabs.len(), 1);
+        assert_eq!(app.active, 0);
+        assert_eq!(app.status_message(), Some("No manual entry for seek"));
     }
 }
