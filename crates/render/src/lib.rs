@@ -2,6 +2,10 @@ use std::fmt;
 use std::io::Read;
 use std::process::{Command, Stdio};
 
+mod args_validation;
+
+pub use args_validation::{classify_args, ArgsInterpretation, ValidationError};
+
 #[derive(Debug)]
 pub enum RenderError {
     Io(std::io::Error),
