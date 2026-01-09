@@ -6,14 +6,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 pub fn draw(frame: &mut Frame, app: &App) {
-    let size = frame.size();
+    let area = frame.area();
 
     if matches!(app.mode(), Mode::Help) {
-        draw_help(frame, size);
+        draw_help(frame, area);
         return;
     }
 
-    let chunks = layout(size);
+    let chunks = layout(area);
 
     let tab_line = format_tabs(app);
     frame.render_widget(Paragraph::new(tab_line), chunks[0]);
@@ -181,5 +181,5 @@ fn set_prompt_cursor(frame: &mut Frame, area: Rect, line: &str) {
     if cursor_x > max_x {
         cursor_x = max_x;
     }
-    frame.set_cursor(cursor_x, area.y);
+    frame.set_cursor_position((cursor_x, area.y));
 }
