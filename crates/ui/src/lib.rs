@@ -158,6 +158,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
         Line::from("  H/L                    Previous/next tab"),
         Line::from("  /                      Search"),
         Line::from("  n/p                    Next/previous match"),
+        Line::from("  -/+                    Narrow/widen text column"),
         Line::from("  ?                      Show help"),
         Line::from("  q                      Quit help"),
     ];

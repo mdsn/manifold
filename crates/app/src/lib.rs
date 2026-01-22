@@ -10,6 +10,8 @@ pub enum Action {
     PageDown,
     HalfPageUp,
     HalfPageDown,
+    DecreaseWidth,
+    IncreaseWidth,
     Resize(u16, u16),
     GoTop,
     GoBottom,
@@ -155,6 +157,9 @@ impl App {
             Action::PageDown => self.page_down(viewport_height),
             Action::HalfPageUp => self.half_page_up(viewport_height),
             Action::HalfPageDown => self.half_page_down(viewport_height),
+            Action::DecreaseWidth | Action::IncreaseWidth => {
+                self.resize_active(renderer, width, viewport_height)?;
+            }
             Action::Resize(_, _) => self.resize_active(renderer, width, viewport_height)?,
             Action::GoTop => self.go_top(),
             Action::GoBottom => self.go_bottom(viewport_height),

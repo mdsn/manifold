@@ -12,6 +12,8 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 KeyCode::Char('G') => Some(Action::GoBottom),
                 KeyCode::Char('u') => Some(Action::HalfPageUp),
                 KeyCode::Char('d') => Some(Action::HalfPageDown),
+                KeyCode::Char('-') => Some(Action::DecreaseWidth),
+                KeyCode::Char('+') => Some(Action::IncreaseWidth),
                 KeyCode::Char('b') => Some(Action::PageUp),
                 KeyCode::Char('f') => Some(Action::PageDown),
                 KeyCode::Char('H') => Some(Action::TabLeft),
@@ -120,6 +122,18 @@ mod tests {
         assert_eq!(
             map_event(Event::Key(KeyCode::Char('d')), &Mode::Normal),
             Some(Action::HalfPageDown)
+        );
+    }
+
+    #[test]
+    fn maps_width_keys() {
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('-')), &Mode::Normal),
+            Some(Action::DecreaseWidth)
+        );
+        assert_eq!(
+            map_event(Event::Key(KeyCode::Char('+')), &Mode::Normal),
+            Some(Action::IncreaseWidth)
         );
     }
 
