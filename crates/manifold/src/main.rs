@@ -21,6 +21,7 @@ type PageTopics = Vec<String>;
 type PageSection = Option<String>;
 type PageSelection = (PageTopics, PageSection);
 const WIDTH_STEP: u16 = 5;
+const DEFAULT_CONTENT_WIDTH: u16 = 80;
 const MIN_CONTENT_WIDTH: u16 = 15;
 
 fn resolve_initial_pages(args: &[String]) -> Result<Option<PageSelection>, ValidationError> {
@@ -43,6 +44,10 @@ fn resolve_initial_pages(args: &[String]) -> Result<Option<PageSelection>, Valid
 
 fn min_content_width(terminal_width: u16) -> u16 {
     terminal_width.min(MIN_CONTENT_WIDTH)
+}
+
+fn default_content_width(terminal_width: u16) -> u16 {
+    terminal_width.min(DEFAULT_CONTENT_WIDTH)
 }
 
 fn clamp_content_width(width: u16, terminal_width: u16) -> u16 {
@@ -73,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let size = terminal.terminal_mut().size()?;
     let mut terminal_width = size.width.max(1);
-    let mut content_width = terminal_width;
+    let mut content_width = default_content_width(terminal_width);
     let mut content_height = ui::content_height(size.height);
     let initial_pages = resolve_initial_pages(&cli.args)?;
     let mut app = App::empty();
@@ -122,6 +127,12 @@ mod tests {
         assert_eq!(clamp_content_width(10, 50), 15);
         assert_eq!(clamp_content_width(80, 50), 50);
         assert_eq!(clamp_content_width(5, 5), 5);
+    }
+
+    #[test]
+    fn uses_default_content_width_with_terminal_cap() {
+        assert_eq!(default_content_width(300), 80);
+        assert_eq!(default_content_width(50), 50);
     }
 
     #[test]
