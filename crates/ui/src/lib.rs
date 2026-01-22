@@ -26,16 +26,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
         draw_intro(frame, chunks[1]);
     }
 
+    let viewport_height = content_height(area.height);
     let status = match app.mode() {
-        Mode::Normal => {
-            if let Some(message) = app.status_message() {
-                message.to_string()
-            } else if app.has_tabs() {
-                format!("{}  line {}", app.title(), app.scroll() + 1)
-            } else {
-                String::new()
-            }
-        }
+        Mode::Normal => status_line(app, viewport_height),
         Mode::Help => String::new(),
         Mode::Command { line } => format!(":{line}"),
         Mode::Search { line, .. } => format!("/{line}"),
@@ -51,6 +44,38 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
 pub fn content_height(height: u16) -> usize {
     height.saturating_sub(2) as usize
+}
+
+fn status_line(app: &App, viewport_height: usize) -> String {
+    if let Some(message) = app.status_message() {
+        return message.to_string();
+    }
+    if !app.has_tabs() {
+        return String::new();
+    }
+    let line = app.scroll() + 1;
+    let title = app.title();
+    let total_lines = app.lines().len();
+    let percent = percent_label(app.scroll(), total_lines, viewport_height);
+    match percent {
+        Some(label) => format!("{title}  line {line}  {label}"),
+        None => format!("{title}  line {line}"),
+    }
+}
+
+fn percent_label(scroll: usize, total_lines: usize, viewport_height: usize) -> Option<String> {
+    if total_lines == 0 {
+        return None;
+    }
+    let max_scroll = total_lines.saturating_sub(viewport_height.max(1));
+    if scroll == 0 {
+        return Some("Top".to_string());
+    }
+    if scroll >= max_scroll {
+        return Some("Bot".to_string());
+    }
+    let percent = (scroll + 1) * 100 / total_lines.max(1);
+    Some(format!("{percent}%"))
 }
 
 fn layout(area: Rect) -> [Rect; 3] {
@@ -183,4 +208,52 @@ fn set_prompt_cursor(frame: &mut Frame, area: Rect, line: &str) {
         cursor_x = max_x;
     }
     frame.set_cursor_position((cursor_x, area.y));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use app::App;
+    use render::{ManRenderer, RenderError};
+
+    struct TestRenderer {
+        lines: Vec<String>,
+    }
+
+    impl ManRenderer for TestRenderer {
+        fn render(
+            &self,
+            _name: &str,
+            _section: Option<&str>,
+            _width: u16,
+        ) -> Result<Vec<String>, RenderError> {
+            Ok(self.lines.clone())
+        }
+    }
+
+    fn make_app(line_count: usize, viewport_height: usize) -> App {
+        let lines = (0..line_count).map(|idx| format!("line {idx}")).collect();
+        let renderer = TestRenderer { lines };
+        let mut app = App::new("example", None);
+        app.resize_active(&renderer, 80, viewport_height)
+            .expect("render");
+        app
+    }
+
+    #[test]
+    fn status_line_shows_top_and_bottom_labels() {
+        let viewport_height = 10;
+        let mut app = make_app(100, viewport_height);
+        assert_eq!(status_line(&app, viewport_height), "example  line 1  Top");
+        app.go_bottom(viewport_height);
+        assert_eq!(status_line(&app, viewport_height), "example  line 91  Bot");
+    }
+
+    #[test]
+    fn status_line_shows_percentage_between_top_and_bottom() {
+        let viewport_height = 10;
+        let mut app = make_app(100, viewport_height);
+        app.scroll_down(49, viewport_height);
+        assert_eq!(status_line(&app, viewport_height), "example  line 50  50%");
+    }
 }
