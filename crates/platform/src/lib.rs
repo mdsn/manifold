@@ -6,7 +6,6 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use std::io::{self, Stdout};
-use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyCode {
@@ -55,27 +54,16 @@ impl Drop for TerminalContext {
     }
 }
 
-pub enum PlatformEvent {
-    Input(Event),
-    Tick,
-}
-
-pub struct EventStream {
-    tick_rate: Duration,
-}
+pub struct EventStream;
 
 impl EventStream {
-    pub fn new(tick_rate: Duration) -> Self {
-        Self { tick_rate }
+    pub fn new() -> Self {
+        Self
     }
 
-    pub fn next(&self) -> io::Result<PlatformEvent> {
-        if event::poll(self.tick_rate)? {
-            let event = event::read()?;
-            Ok(PlatformEvent::Input(map_crossterm_event(event)))
-        } else {
-            Ok(PlatformEvent::Tick)
-        }
+    pub fn next(&self) -> io::Result<Event> {
+        let event = event::read()?;
+        Ok(map_crossterm_event(event))
     }
 }
 
