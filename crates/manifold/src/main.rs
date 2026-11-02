@@ -153,6 +153,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use render::StyledLine;
 
     struct TestRenderer {
         lines: Vec<String>,
@@ -164,8 +165,8 @@ mod tests {
             _name: &str,
             _section: Option<&str>,
             _width: u16,
-        ) -> Result<Vec<String>, RenderError> {
-            Ok(self.lines.clone())
+        ) -> Result<Vec<StyledLine>, RenderError> {
+            Ok(self.lines.iter().cloned().map(StyledLine::plain).collect())
         }
     }
 

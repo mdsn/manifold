@@ -1,5 +1,5 @@
 use man::ManPage;
-use render::{ArgsInterpretation, ManRenderer, RenderError, classify_args};
+use render::{ArgsInterpretation, ManRenderer, RenderError, StyledLine, classify_args};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -107,7 +107,7 @@ impl App {
         }
     }
 
-    pub fn lines(&self) -> &[String] {
+    pub fn lines(&self) -> &[StyledLine] {
         self.active_page().map(ManPage::lines).unwrap_or(&[])
     }
 
@@ -627,11 +627,11 @@ mod tests {
             name: &str,
             _section: Option<&str>,
             width: u16,
-        ) -> Result<Vec<String>, RenderError> {
+        ) -> Result<Vec<StyledLine>, RenderError> {
             let next = self.calls.get() + 1;
             self.calls.set(next);
             let line = format!("{name}:{width}");
-            Ok(vec![line; 50])
+            Ok(vec![StyledLine::plain(line); 50])
         }
     }
 
@@ -651,8 +651,8 @@ mod tests {
             _name: &str,
             _section: Option<&str>,
             _width: u16,
-        ) -> Result<Vec<String>, RenderError> {
-            Ok(self.lines.clone())
+        ) -> Result<Vec<StyledLine>, RenderError> {
+            Ok(self.lines.iter().cloned().map(StyledLine::plain).collect())
         }
     }
 
@@ -664,7 +664,7 @@ mod tests {
             _name: &str,
             _section: Option<&str>,
             _width: u16,
-        ) -> Result<Vec<String>, RenderError> {
+        ) -> Result<Vec<StyledLine>, RenderError> {
             Err(RenderError::CommandFailed(
                 "No manual entry for seek".to_string(),
             ))

@@ -1,9 +1,9 @@
-use render::{ManRenderer, RenderError};
+use render::{ManRenderer, RenderError, StyledLine};
 
 #[derive(Debug, Clone)]
 pub struct RenderCache {
     pub width: u16,
-    pub lines: Vec<String>,
+    pub lines: Vec<StyledLine>,
 }
 
 impl RenderCache {
@@ -47,7 +47,7 @@ impl ManPage {
         self.section.as_deref()
     }
 
-    pub fn lines(&self) -> &[String] {
+    pub fn lines(&self) -> &[StyledLine] {
         &self.cache.lines
     }
 
@@ -179,12 +179,13 @@ pub struct SearchMatch {
     pub end: usize,
 }
 
-fn collect_matches(lines: &[String], query: &str) -> Vec<SearchMatch> {
+fn collect_matches(lines: &[StyledLine], query: &str) -> Vec<SearchMatch> {
     if query.is_empty() {
         return Vec::new();
     }
     let mut matches = Vec::new();
     for (line_index, line) in lines.iter().enumerate() {
+        let line = line.plain_text();
         let mut offset = 0;
         while let Some(pos) = line[offset..].find(query) {
             let start = offset + pos;

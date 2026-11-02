@@ -5,7 +5,5 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app" }
-ratatui = "0.30"
-
-[dev-dependencies]
 render = { path = "../render" }
+ratatui = "0.30"

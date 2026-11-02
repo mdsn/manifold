@@ -4,6 +4,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use render::{StyledLine, TextStyle};
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -110,46 +111,79 @@ fn format_tabs(app: &App) -> Line<'static> {
 }
 
 fn build_lines(app: &App) -> Vec<Line<'static>> {
-    let Some(query) = app.search_query() else {
-        return app
-            .lines()
-            .iter()
-            .map(|line| Line::from(line.to_string()))
-            .collect();
-    };
-    if query.is_empty() {
-        return app
-            .lines()
-            .iter()
-            .map(|line| Line::from(line.to_string()))
-            .collect();
-    }
-    let highlight = Style::default().add_modifier(Modifier::REVERSED);
     app.lines()
         .iter()
-        .map(|line| highlight_line(line, query, highlight))
+        .map(|line| styled_line(line, app.search_query().filter(|query| !query.is_empty())))
         .collect()
 }
 
-fn highlight_line(line: &str, query: &str, style: Style) -> Line<'static> {
+fn styled_line(line: &StyledLine, query: Option<&str>) -> Line<'static> {
+    let text = line.plain_text();
+    let matches = query
+        .map(|query| match_ranges(&text, query))
+        .unwrap_or_default();
     let mut spans = Vec::new();
-    let mut offset = 0;
-    while let Some(pos) = line[offset..].find(query) {
-        let start = offset + pos;
-        let end = start + query.len();
-        if start > offset {
-            spans.push(Span::raw(line[offset..start].to_string()));
+    let mut offset = 0usize;
+    for source_span in line.spans() {
+        let end = offset + source_span.content.len();
+        let mut boundaries = vec![offset, end];
+        for &(match_start, match_end) in &matches {
+            if match_start > offset && match_start < end {
+                boundaries.push(match_start);
+            }
+            if match_end > offset && match_end < end {
+                boundaries.push(match_end);
+            }
         }
-        spans.push(Span::styled(line[start..end].to_string(), style));
+        boundaries.sort_unstable();
+        boundaries.dedup();
+        for window in boundaries.windows(2) {
+            let segment_start = window[0];
+            let segment_end = window[1];
+            let highlighted = matches
+                .iter()
+                .any(|&(start, end)| start <= segment_start && segment_end <= end);
+            let mut style = ratatui_style(source_span.style);
+            if highlighted {
+                style = style.add_modifier(Modifier::REVERSED);
+            }
+            spans.push(Span::styled(
+                source_span.content[segment_start - offset..segment_end - offset].to_string(),
+                style,
+            ));
+        }
         offset = end;
     }
-    if spans.is_empty() {
-        return Line::from(line.to_string());
-    }
-    if offset < line.len() {
-        spans.push(Span::raw(line[offset..].to_string()));
-    }
     Line::from(spans)
+}
+
+fn match_ranges(text: &str, query: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut offset = 0usize;
+    while let Some(position) = text[offset..].find(query) {
+        let start = offset + position;
+        let end = start + query.len();
+        ranges.push((start, end));
+        offset = end;
+    }
+    ranges
+}
+
+fn ratatui_style(source: TextStyle) -> Style {
+    let mut style = Style::default();
+    if source.bold {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    if source.underlined {
+        style = style.add_modifier(Modifier::UNDERLINED);
+    }
+    if source.italic {
+        style = style.add_modifier(Modifier::ITALIC);
+    }
+    if source.reversed {
+        style = style.add_modifier(Modifier::REVERSED);
+    }
+    style
 }
 
 fn draw_intro(frame: &mut Frame, area: Rect) {
@@ -214,7 +248,7 @@ fn set_prompt_cursor(frame: &mut Frame, area: Rect, line: &str) {
 mod tests {
     use super::*;
     use app::App;
-    use render::{ManRenderer, RenderError};
+    use render::{ManRenderer, RenderError, StyledLine, decode_terminal_text};
 
     struct TestRenderer {
         lines: Vec<String>,
@@ -226,8 +260,8 @@ mod tests {
             _name: &str,
             _section: Option<&str>,
             _width: u16,
-        ) -> Result<Vec<String>, RenderError> {
-            Ok(self.lines.clone())
+        ) -> Result<Vec<StyledLine>, RenderError> {
+            Ok(self.lines.iter().cloned().map(StyledLine::plain).collect())
         }
     }
 
@@ -255,5 +289,14 @@ mod tests {
         let mut app = make_app(100, viewport_height);
         app.scroll_down(49, viewport_height);
         assert_eq!(status_line(&app, viewport_height), "example  line 50  50%");
+    }
+
+    #[test]
+    fn search_highlighting_keeps_source_emphasis() {
+        let lines = decode_terminal_text("a\u{1b}[1mb\u{1b}[0mc\n");
+        let rendered = styled_line(&lines[0], Some("b"));
+        let style = rendered.spans[1].style;
+        assert!(style.add_modifier.contains(Modifier::BOLD));
+        assert!(style.add_modifier.contains(Modifier::REVERSED));
     }
 }
