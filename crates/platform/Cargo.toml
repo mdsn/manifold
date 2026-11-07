@@ -6,3 +6,6 @@ edition.workspace = true
 [dependencies]
 crossterm = "0.29"
 ratatui = "0.30"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

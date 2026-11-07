@@ -53,7 +53,7 @@ pub fn map_event(event: Event, mode: &Mode) -> Option<Action> {
                 _ => None,
             },
         },
-        Event::Unsupported => None,
+        Event::Suspend | Event::Unsupported => None,
     }
 }
 
@@ -148,6 +148,11 @@ mod tests {
     #[test]
     fn ignores_unsupported() {
         assert_eq!(map_event(Event::Unsupported, &Mode::Normal), None);
+    }
+
+    #[test]
+    fn does_not_map_suspend_to_an_app_action() {
+        assert_eq!(map_event(Event::Suspend, &Mode::Normal), None);
     }
 
     #[test]

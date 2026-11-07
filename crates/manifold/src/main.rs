@@ -74,6 +74,7 @@ fn apply_width_action(width: u16, terminal_width: u16, action: &Action) -> Optio
 enum LoopOutcome {
     NoRedraw,
     Redraw,
+    Suspend,
     Quit,
 }
 
@@ -85,6 +86,10 @@ fn handle_event(
     content_height: &mut usize,
     event: Event,
 ) -> Result<LoopOutcome, RenderError> {
+    if event == Event::Suspend {
+        return Ok(LoopOutcome::Suspend);
+    }
+
     let Some(action) = map_event(event, app.mode()) else {
         return Ok(LoopOutcome::NoRedraw);
     };
@@ -139,6 +144,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         )? {
             LoopOutcome::NoRedraw => {}
             LoopOutcome::Redraw => {
+                terminal
+                    .terminal_mut()
+                    .draw(|frame| ui::draw(frame, &app))?;
+            }
+            LoopOutcome::Suspend => {
+                terminal.suspend()?;
+
+                let size = terminal.terminal_mut().size()?;
+                terminal_width = size.width.max(1);
+                content_width = clamp_content_width(content_width, terminal_width);
+                content_height = ui::content_height(size.height);
+                app.resize_active(&renderer, content_width, content_height)?;
                 terminal
                     .terminal_mut()
                     .draw(|frame| ui::draw(frame, &app))?;
@@ -238,6 +255,27 @@ mod tests {
         .expect("ignored event");
 
         assert_eq!(outcome, LoopOutcome::NoRedraw);
+        assert_eq!(app.scroll(), 0);
+    }
+
+    #[test]
+    fn suspend_requests_terminal_suspend_without_updating_the_app() {
+        let (mut app, renderer) = make_app();
+        let mut terminal_width = 100;
+        let mut content_width = 80;
+        let mut content_height = 20;
+
+        let outcome = handle_event(
+            &mut app,
+            &renderer,
+            &mut content_width,
+            &mut terminal_width,
+            &mut content_height,
+            Event::Suspend,
+        )
+        .expect("suspend event");
+
+        assert_eq!(outcome, LoopOutcome::Suspend);
         assert_eq!(app.scroll(), 0);
     }
 
